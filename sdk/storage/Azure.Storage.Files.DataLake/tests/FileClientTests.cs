@@ -226,11 +226,20 @@ namespace Azure.Storage.Files.DataLake.Tests
         [TestCase(true)]
         public async Task CreateAsync(bool createIfNotExists)
         {
-            await using DisposingFileSystem test = await GetNewFileSystem();
-            DataLakeDirectoryClient directory = await test.FileSystem.CreateDirectoryAsync(GetNewDirectoryName());
+            // await using DisposingFileSystem test = await GetNewFileSystem();
+            // DataLakeDirectoryClient directory = await test.FileSystem.CreateDirectoryAsync(GetNewDirectoryName());
 
             // Arrange
-            DataLakeFileClient file = InstrumentClient(directory.GetFileClient(GetNewFileName()));
+            // DataLakeFileClient file = InstrumentClient(directory.GetFileClient(GetNewFileName()));
+
+            TokenCredential tokenCredential = Tenants.GetOAuthCredential(TestConfigHierarchicalNamespace);
+            string newFileName = GetNewFileName();
+
+            DataLakeFileSystemClient test = new DataLakeFileSystemClient(new Uri("https://onelakeedog.pbidedicated.windows-int.net/5d97f4e4-a34e-4aa6-a9ef-523274531584/"), tokenCredential);
+            DataLakeDirectoryClient directory = new DataLakeDirectoryClient(new Uri("https://onelakeedog.pbidedicated.windows-int.net/5d97f4e4-a34e-4aa6-a9ef-523274531584/9d78db54-d6ec-469b-a858-9b3b7c093d50/Files/"), tokenCredential);
+
+            Uri newFileUri = new Uri($"https://onelakeedog.pbidedicated.windows-int.net/5d97f4e4-a34e-4aa6-a9ef-523274531584/9d78db54-d6ec-469b-a858-9b3b7c093d50/Files/{newFileName}");
+            DataLakeFileClient file = new DataLakeFileClient(newFileUri, tokenCredential);
 
             // Act
             Response<PathInfo> response;

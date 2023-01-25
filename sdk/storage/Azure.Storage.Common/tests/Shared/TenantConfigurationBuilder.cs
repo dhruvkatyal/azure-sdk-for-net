@@ -145,8 +145,8 @@ namespace Azure.Storage.Test.Shared
                 new Uri(config.ActiveDirectoryAuthEndpoint));
 
         public TokenCredential GetOAuthCredential(string tenantId, string appId, string secret, Uri authorityHost) =>
-            Mode == RecordedTestMode.Playback ?
-                (TokenCredential)new StorageTestTokenCredential() :
+            //Mode == RecordedTestMode.Playback ?
+            //    (TokenCredential)new StorageTestTokenCredential() :
                 new ClientSecretCredential(
                     tenantId,
                     appId,
