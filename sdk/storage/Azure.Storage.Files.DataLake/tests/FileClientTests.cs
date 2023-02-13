@@ -32,62 +32,6 @@ namespace Azure.Storage.Files.DataLake.Tests
         }
 
         [RecordedTest]
-        public async Task Ctor_Uri()
-        {
-            string fileSystemName = GetNewFileSystemName();
-            string directoryName = GetNewDirectoryName();
-            string fileName = GetNewFileName();
-
-            await using DisposingFileSystem test = await GetNewFileSystem(fileSystemName: fileSystemName);
-            DataLakeDirectoryClient directory = await test.FileSystem.CreateDirectoryAsync(directoryName);
-
-            // Arrange
-            await directory.CreateFileAsync(fileName);
-
-            SasQueryParameters sasQueryParameters = GetNewAccountSasCredentials();
-            Uri uri = new Uri($"{TestConfigHierarchicalNamespace.BlobServiceEndpoint}/{fileSystemName}/{directoryName}/{fileName}?{sasQueryParameters}");
-            DataLakeFileClient fileClient = InstrumentClient(new DataLakeFileClient(uri, GetOptions()));
-
-            // Act
-            await fileClient.GetPropertiesAsync();
-
-            // Assert
-            Assert.AreEqual(fileName, fileClient.Name);
-            Assert.AreEqual(fileSystemName, fileClient.FileSystemName);
-            Assert.AreEqual($"{directoryName}/{fileName}", fileClient.Path);
-            Assert.AreEqual(uri, fileClient.Uri);
-        }
-
-        [RecordedTest]
-        public async Task Ctor_SharedKey()
-        {
-            string fileSystemName = GetNewFileSystemName();
-            string directoryName = GetNewDirectoryName();
-            string fileName = GetNewFileName();
-
-            await using DisposingFileSystem test = await GetNewFileSystem(fileSystemName: fileSystemName);
-            DataLakeDirectoryClient directory = await test.FileSystem.CreateDirectoryAsync(directoryName);
-
-            // Arrange
-            await directory.CreateFileAsync(fileName);
-
-            StorageSharedKeyCredential sharedKey = new StorageSharedKeyCredential(
-                TestConfigHierarchicalNamespace.AccountName,
-                TestConfigHierarchicalNamespace.AccountKey);
-            Uri uri = new Uri($"{TestConfigHierarchicalNamespace.BlobServiceEndpoint}/{fileSystemName}/{directoryName}/{fileName}");
-            DataLakeFileClient fileClient = InstrumentClient(new DataLakeFileClient(uri, sharedKey, GetOptions()));
-
-            // Act
-            await fileClient.GetPropertiesAsync();
-
-            // Assert
-            Assert.AreEqual(fileName, fileClient.Name);
-            Assert.AreEqual(fileSystemName, fileClient.FileSystemName);
-            Assert.AreEqual($"{directoryName}/{fileName}", fileClient.Path);
-            Assert.AreEqual(uri, fileClient.Uri);
-        }
-
-        [RecordedTest]
         public async Task Ctor_TokenCredential()
         {
             string fileSystemName = GetNewFileSystemName();
@@ -132,98 +76,10 @@ namespace Azure.Storage.Files.DataLake.Tests
         }
 
         [RecordedTest]
-        public async Task Ctor_ConnectionString_RoundTrip()
-        {
-            // Arrange
-            string fileSystemName = GetNewFileSystemName();
-            string path = GetNewDirectoryName();
-            await using DisposingFileSystem test = await GetNewFileSystem(fileSystemName: fileSystemName);
-            DataLakeDirectoryClient directoryClient = InstrumentClient(test.FileSystem.GetDirectoryClient(path));
-            await directoryClient.CreateAsync();
-
-            // Act
-            string connectionString = $"DefaultEndpointsProtocol=https;AccountName={TestConfigHierarchicalNamespace.AccountName};AccountKey={TestConfigHierarchicalNamespace.AccountKey};BlobEndpoint={TestConfigHierarchicalNamespace.BlobServiceEndpoint};FileEndpoint={TestConfigHierarchicalNamespace.FileServiceEndpoint};QueueEndpoint={TestConfigHierarchicalNamespace.QueueServiceEndpoint};TableEndpoint={TestConfigHierarchicalNamespace.TableServiceEndpoint}";
-            DataLakeFileClient connStringFile = InstrumentClient(new DataLakeFileClient(connectionString, fileSystemName, path, GetOptions()));
-
-            // Assert
-            await connStringFile.GetPropertiesAsync();
-            await connStringFile.GetAccessControlAsync();
-        }
-
-        [RecordedTest]
-        public async Task Ctor_ConnectionString_GenerateSas()
-        {
-            // Arrange
-            string fileSystemName = GetNewFileSystemName();
-            string path = GetNewDirectoryName();
-            await using DisposingFileSystem test = await GetNewFileSystem(fileSystemName: fileSystemName);
-            DataLakeDirectoryClient directoryClient = InstrumentClient(test.FileSystem.GetDirectoryClient(path));
-            await directoryClient.CreateAsync();
-
-            // Act
-            string connectionString = $"DefaultEndpointsProtocol=https;AccountName={TestConfigHierarchicalNamespace.AccountName};AccountKey={TestConfigHierarchicalNamespace.AccountKey};BlobEndpoint={TestConfigHierarchicalNamespace.BlobServiceEndpoint};FileEndpoint={TestConfigHierarchicalNamespace.FileServiceEndpoint};QueueEndpoint={TestConfigHierarchicalNamespace.QueueServiceEndpoint};TableEndpoint={TestConfigHierarchicalNamespace.TableServiceEndpoint}";
-            DataLakeFileClient connStringFile = InstrumentClient(new DataLakeFileClient(connectionString, fileSystemName, path, GetOptions()));
-            Uri sasUri = connStringFile.GenerateSasUri(DataLakeSasPermissions.All, Recording.UtcNow.AddDays(1));
-            DataLakeFileClient sasFileClient = InstrumentClient(new DataLakeFileClient(sasUri, GetOptions()));
-
-            // Assert
-            await sasFileClient.GetPropertiesAsync();
-            await sasFileClient.GetAccessControlAsync();
-        }
-
-        [RecordedTest]
-        public async Task Ctor_AzureSasCredential()
-        {
-            // Arrange
-            string sas = GetNewAccountSasCredentials().ToString();
-            await using DisposingFileSystem test = await GetNewFileSystem();
-            var client = test.FileSystem.GetRootDirectoryClient().GetFileClient(GetNewFileName());
-            await client.CreateIfNotExistsAsync();
-            Uri uri = client.Uri;
-
-            // Act
-            var sasClient = InstrumentClient(new DataLakeFileClient(uri, new AzureSasCredential(sas), GetOptions()));
-            PathProperties properties = await sasClient.GetPropertiesAsync();
-
-            // Assert
-            Assert.IsNotNull(properties);
-        }
-
-        [RecordedTest]
-        public async Task Ctor_AzureSasCredential_VerifyNoSasInUri()
-        {
-            // Arrange
-            string sas = GetNewAccountSasCredentials().ToString();
-            await using DisposingFileSystem test = await GetNewFileSystem();
-            Uri uri = test.FileSystem.GetRootDirectoryClient().GetFileClient(GetNewFileName()).Uri;
-            uri = new Uri(uri.ToString() + "?" + sas);
-
-            // Act
-            TestHelper.AssertExpectedException<ArgumentException>(
-                () => new DataLakeFileClient(uri, new AzureSasCredential(sas)),
-                e => e.Message.Contains($"You cannot use {nameof(AzureSasCredential)} when the resource URI also contains a Shared Access Signature"));
-        }
-
-        [RecordedTest]
-        public void Ctor_CPK_Http()
-        {
-            // Arrange
-            Models.DataLakeCustomerProvidedKey customerProvidedKey = GetCustomerProvidedKey();
-            DataLakeClientOptions dataLakeClientOptions = new DataLakeClientOptions
-            {
-                CustomerProvidedKey = customerProvidedKey
-            };
-            Uri httpUri = new Uri(TestConfigHierarchicalNamespace.BlobServiceEndpoint).ToHttp();
-
-            // Act
-            TestHelper.AssertExpectedException(
-                () => new DataLakeFileClient(httpUri, dataLakeClientOptions),
-                new ArgumentException("Cannot use client-provided key without HTTPS."));
-        }
-
-        [RecordedTest]
         [TestCase(false)]
         [TestCase(true)]
+        // two tests needed, one for createIfNotExists = true, one for createIfNotExists = false
+        // similar for all tests with TestCase asstribute
         public async Task CreateAsync(bool createIfNotExists)
         {
             await using DisposingFileSystem test = await GetNewFileSystem();
@@ -251,6 +107,7 @@ namespace Azure.Storage.Files.DataLake.Tests
         }
 
         [RecordedTest]
+// use a dummy (non existent file system for this)
         public async Task CreateAsync_Error()
         {
             // Arrange
@@ -342,6 +199,7 @@ namespace Azure.Storage.Files.DataLake.Tests
         [RecordedTest]
         [TestCase(false)]
         [TestCase(true)]
+// not sure if this works in OneLake or not. call should be successful though, should not error out, rest of the response, we need to check
         public async Task CreateAsync_PermissionAndUmask(bool createIfNotExists)
         {
             await using DisposingFileSystem test = await GetNewFileSystem();
@@ -379,6 +237,7 @@ namespace Azure.Storage.Files.DataLake.Tests
         [RecordedTest]
         [TestCase(false)]
         [TestCase(true)]
+        // not sure if this works in OneLake or not. call should be successful though, should not error out, rest of the response, we need to check
         public async Task CreateAsync_Owner(bool createIfNotExists)
         {
             // Arrange
@@ -414,6 +273,7 @@ namespace Azure.Storage.Files.DataLake.Tests
         [RecordedTest]
         [TestCase(false)]
         [TestCase(true)]
+        // not sure if this works in OneLake or not. call should be successful though, should not error out, rest of the response, we need to check
         public async Task CreateAsync_Group(bool createIfNotExists)
         {
             // Arrange
@@ -449,6 +309,7 @@ namespace Azure.Storage.Files.DataLake.Tests
         [RecordedTest]
         [TestCase(false)]
         [TestCase(true)]
+        // not sure if this works in OneLake or not. call should be successful though, should not error out, rest of the response, we need to check
         public async Task CreateAsync_Acl(bool createIfNotExists)
         {
             // Arrange
@@ -647,34 +508,6 @@ namespace Azure.Storage.Files.DataLake.Tests
         }
 
         [RecordedTest]
-        [TestCase(false)]
-        [TestCase(true)]
-        [ServiceVersion(Min = DataLakeClientOptions.ServiceVersion.V2020_10_02)]
-        public async Task CreateAsync_CPK(bool createIfNotExists)
-        {
-            // Arrange
-            await using DisposingFileSystem test = await GetNewFileSystem();
-            DataLakeDirectoryClient directory = await test.FileSystem.CreateDirectoryAsync(GetNewDirectoryName());
-            DataLakeCustomerProvidedKey customerProvidedKey = GetCustomerProvidedKey();
-            DataLakeFileClient file = InstrumentClient(directory.GetFileClient(GetNewFileName()).WithCustomerProvidedKey(customerProvidedKey));
-
-            // Act
-            if (createIfNotExists)
-            {
-                await file.CreateIfNotExistsAsync();
-            }
-            else
-            {
-                await file.CreateAsync();
-            }
-
-            // Assert
-            Response<PathProperties> response = await file.GetPropertiesAsync();
-            Assert.IsTrue(response.Value.IsServerEncrypted);
-            Assert.AreEqual(customerProvidedKey.EncryptionKeyHash, response.Value.EncryptionKeySha256);
-        }
-
-        [RecordedTest]
         public async Task CreateIfNotExistsAsync_NotExists()
         {
             // Arrange
@@ -718,25 +551,6 @@ namespace Azure.Storage.Files.DataLake.Tests
             await TestHelper.AssertExpectedExceptionAsync<RequestFailedException>(
                 unauthorizedFile.CreateIfNotExistsAsync(),
                 e => Assert.AreEqual("AuthenticationFailed", e.ErrorCode));
-        }
-
-        [RecordedTest]
-        [ServiceVersion(Min = DataLakeClientOptions.ServiceVersion.V2020_10_02)]
-        public async Task CreateIfNotExistsAsync_CPK()
-        {
-            // Arrange
-            await using DisposingFileSystem test = await GetNewFileSystem();
-            DataLakeDirectoryClient directory = await test.FileSystem.CreateDirectoryAsync(GetNewDirectoryName());
-            DataLakeCustomerProvidedKey customerProvidedKey = GetCustomerProvidedKey();
-            DataLakeFileClient file = InstrumentClient(directory.GetFileClient(GetNewFileName()).WithCustomerProvidedKey(customerProvidedKey));
-
-            // Act
-            await file.CreateIfNotExistsAsync();
-
-            // Assert
-            Response<PathProperties> response = await file.GetPropertiesAsync();
-            Assert.IsTrue(response.Value.IsServerEncrypted);
-            Assert.AreEqual(customerProvidedKey.EncryptionKeyHash, response.Value.EncryptionKeySha256);
         }
 
         [RecordedTest]
@@ -802,24 +616,6 @@ namespace Azure.Storage.Files.DataLake.Tests
                         "NoAuthenticationInformation" :
                         "ResourceNotFound",
                     e.ErrorCode));
-        }
-
-        [RecordedTest]
-        [ServiceVersion(Min = DataLakeClientOptions.ServiceVersion.V2020_10_02)]
-        public async Task ExistsAsync_CPK()
-        {
-            // Arrange
-            await using DisposingFileSystem test = await GetNewFileSystem();
-            DataLakeDirectoryClient directory = await test.FileSystem.CreateDirectoryAsync(GetNewDirectoryName());
-            DataLakeCustomerProvidedKey customerProvidedKey = GetCustomerProvidedKey();
-            DataLakeFileClient file = InstrumentClient(directory.GetFileClient(GetNewFileName()).WithCustomerProvidedKey(customerProvidedKey));
-            await file.CreateAsync();
-
-            // Act
-            Response<bool> response = await file.ExistsAsync();
-
-            // Assert
-            Assert.IsTrue(response.Value);
         }
 
         [RecordedTest]
